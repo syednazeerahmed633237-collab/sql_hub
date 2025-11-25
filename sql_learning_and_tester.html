@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Learning and Validation Hub</title>
+    
+    <!-- Load Tailwind CSS from CDN FIRST -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configuration MUST come immediately after the CDN load -->
+    <script>
+        // Check if tailwind is available before configuring
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ['Inter', 'sans-serif'],
+                            mono: ['Source Code Pro', 'monospace'],
+                        },
+                        colors: {
+                            'sql-blue': '#104e8b',
+                            'sql-light': '#e8f0fe',
+                        }
+                    }
+                }
+            };
+        } else {
+            console.warn("Tailwind object not found for configuration. Layout might be inconsistent.");
+        }
+    </script>
+    <style>
+        /* Import the Inter font for robustness */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Source+Code+Pro:wght@400;700&display=swap');
+        
+        body {
+            background-color: #f4f7f9;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Styles specific to the SQL Tester component */
+        #queryInput, #formattedQueryOutput {
+            border: 1px solid #d1d5db;
+            transition: border-color 0.2s;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 0.9rem;
+        }
+        #formattedQueryOutput {
+            white-space: pre-wrap; /* Preserve formatting */
+            background-color: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+        .suggestion {
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem; 
+        }
+        .suggestion.error { background-color: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; } 
+        .suggestion.warning { background-color: #fffbeb; color: #b45309; border-left: 4px solid #f59e0b; }
+        .suggestion.info { background-color: #eff6ff; color: #1e40af; border-left: 4px solid #3b82f6; }
+        .toggle-active {
+             background-color: #059669 !important; 
+             color: white !important;
+        }
+        #fixSummary ul {
+            list-style: none;
+            padding-left: 0;
+            margin-left: 0;
+        }
+        /* Style for the current active navigation link */
+        .nav-active {
+            background-color: #e8f0fe; /* sql-light */
+            color: #104e8b; /* sql-blue */
+            font-weight: 600;
+        }
+        
+        /* New style for SQL code blocks in the educational page */
+        .sql-example {
+            background-color: #1e293b; /* slate-800 */
+            color: #f8fafc; /* slate-50 */
+            font-family: 'Source Code Pro', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        
+        /* Specific styling for the table within the detailed explanation */
+        .sql-table th, .sql-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .sql-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            color: #374151;
+        }
+        .sql-table tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <!-- Global State Variables for SPA -->
+    <script>
+        let currentPage = 'Home'; 
+        
+        let allSuggestions = []; 
+        let showAllSuggestions = false; 
+    </script>
+
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl">
+
+        <!-- Enhanced Header with Logo and Navigation -->
+        <header class="p-6 md:p-8 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+            <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+                
+                <!-- Logo and Title -->
+                <div class="flex items-center space-x-3">
+                    <!-- SQL Database Icon (Simple SVG - Used throughout the app) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sql-blue">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                        <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
+                    </svg>
+                    <h1 class="text-3xl font-extrabold text-sql-blue">SQL LEARNING HUB</h1>
+                </div>
+
+                <!-- Navigation Links -->
+                <nav id="navbar" class="flex space-x-1 sm:space-x-2 text-sm sm:text-base">
+                    <!-- Links populated by JS to handle active state -->
+                </nav>
+            </div>
+        </header>
+        <!-- END: Enhanced Header -->
+
+        <!-- Main Content Area - Renders the current page -->
+        <main id="app" class="p-6 md:p-10"></main>
+
+    </div>
+
+    <script>
+        // --- Icon Helpers ---
+        
+        /**
+         * Generates a standard SVG icon for navigation and section headers.
+         * @param {string} iconName - The name of the icon based on page or section.
+         * @returns {string} HTML string for the SVG element.
+         */
+        function getGeneralIconSvg(iconName, color = 'currentColor', classes = "w-5 h-5 mr-2") {
+            let path = '';
+
+            switch (iconName) {
+                // Navigation Icons
+                case 'Home': path = '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'; break; 
+                case 'SQL Tester': path = '<path d="M4 17a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2"/><line x1="12" y1="13" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/>'; break; // Terminal
+                case 'Read More About SQL': path = '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V5H6.5A2.5 2.5 0 0 0 4 7.5v12z"/><path d="M12 11h4"/><path d="M12 15h4"/>'; break; // Book Open
+
+                // Home Page Icons
+                case 'Shield': path = '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'; break; // What is SQL
+                case 'Clock': path = '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'; break; // History
+                case 'Server': path = '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>'; break; // Usage
+                case 'CPU': path = '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M20 15h2"/><path d="M10 2v2"/><path d="M10 20v2"/><path d="M2 10h2"/><path d="M20 10h2"/>'; break; // Key Technologies
+
+                // Read More Page Icons
+                case 'Schema': path = '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><line x1="7" y1="14" x2="7" y2="21"/>'; break; // DDL
+                case 'Edit': path = '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>'; break; // DML
+                case 'Search': path = '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>'; break; // DQL
+                case 'Lock': path = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'; break; // DCL
+                case 'Rotate': path = '<path d="M21.5 2v6H15"/><path d="M2.5 22v-6H9"/><path d="M22 11.5A10 10 0 0 0 5.1 6.5L2.5 9"/><path d="M2 12.5A10 10 0 0 0 18.9 17.5L21.5 15"/>'; break; // TCL
+
+                default: return '';
+            }
+
+            return `<svg xmlns="http://www.w3.org/2000/svg" class="${classes}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+        }
+        
+        // Helper function for suggestion icons (already existed, just renamed internally for clarity)
+        function getSuggestionIconSvg(iconType) {
+            let path = '';
+            let color = '';
+
+            if (iconType === 'error') {
+                path = '<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+                color = '#991b1b';
+            } else if (iconType === 'warning') {
+                path = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.731 0 2.813-1.874 1.948-3.374L13.948 3.376c-.866-1.5-3.033-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />';
+                color = '#b45309';
+            } else if (iconType === 'info') {
+                path = '<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25h.008v.008h-.008V11.25zm.375 0V9.75" /><path fill-rule="evenodd" clip-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.828c1.558-1.558 3.864-.31 3.864-.31l.473 1.905-.473.313S12.57 14.88 11.012 13.322l-.715-1.096a.75.75 0 010-.938l.715-1.096zM7.22 10.5a.75.75 0 000 1.5h.008a.75.75 0 000-1.5H7.22z" clip-rule="evenodd" />';
+                color = '#1e40af';
+            }
+
+            return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="1.5" stroke="${color}" class="w-6 h-6 fill-none">
+                        ${path}
+                    </svg>`;
+        }
+
+
+        // --- Navigation and SPA Routing ---
+        const pageConfigs = {
+            'Home': { 
+                title: 'SQL: The Language of Data', 
+                renderer: renderHomePage, 
+                description: 'Explore the history, purpose, and widespread use of Structured Query Language.'
+            },
+            'SQL Tester': { 
+                title: 'SQL Query Validator & Style Guide', 
+                renderer: renderTesterPage, 
+                description: 'Paste your queries here for instant validation, style checks, and automatic formatting.'
+            },
+            'Read More About SQL': { 
+                title: 'SQL Command Groups: DDL, DML, DQL, DCL, and TCL', 
+                renderer: renderReadMorePage, 
+                description: 'Understand the different command sets that make up the complete SQL standard.'
+            }
+        };
+
+        /**
+         * Renders the navigation bar and sets the active link.
+         */
+        function renderNavBar() {
+            const navbar = document.getElementById('navbar');
+            navbar.innerHTML = '';
+            Object.keys(pageConfigs).forEach(pageName => {
+                const isActive = currentPage === pageName;
+                const button = document.createElement('button');
+                // --- ICON INTEGRATION IN NAV BAR ---
+                const icon = getGeneralIconSvg(pageName, isActive ? '#104e8b' : 'currentColor', 'w-4 h-4 mr-2');
+                
+                button.innerHTML = icon + pageName;
+                button.className = `flex items-center font-medium py-2 px-3 rounded-lg transition duration-150 hover:bg-sql-light hover:text-sql-blue ${isActive ? 'nav-active' : 'text-gray-600'}`;
+                button.onclick = () => changePage(pageName);
+                navbar.appendChild(button);
+            });
+        }
+        
+        /**
+         * Switches the current view and re-renders the content.
+         */
+        function changePage(newPage) {
+            currentPage = newPage;
+            renderCurrentPage();
+        }
+
+        /**
+         * Renders the content of the currently selected page.
+         */
+        function renderCurrentPage() {
+            const app = document.getElementById('app');
+            const config = pageConfigs[currentPage];
+            
+            // Render the navigation bar first
+            renderNavBar();
+
+            // Render the page content
+            if (config && config.renderer) {
+                app.innerHTML = config.renderer(config);
+            } else {
+                app.innerHTML = '<p class="text-red-600">Page not found.</p>';
+            }
+            
+            // Specific setup needed after the SQL Tester view is rendered
+            if (currentPage === 'SQL Tester') {
+                // Attach event handlers needed for the dynamically rendered elements
+                attachTesterListeners();
+                // Ensure the initial check runs to populate the default state
+                checkQuery(); 
+            }
+        }
+        
+        // --- View 1: Home Page Renderer (Icons Updated) ---
+        function renderHomePage(config) {
+            return `
+                <div class="space-y-10">
+                    <h2 class="text-3xl font-bold text-gray-800 border-b pb-3 mb-6">${config.title}</h2>
+                    
+                    <section>
+                        <h3 class="text-2xl font-semibold text-sql-blue mb-3 flex items-center">
+                            ${getGeneralIconSvg('Shield', '#104e8b', 'w-6 h-6 mr-2')}
+                            What is SQL?
+                        </h3>
+                        <p class="text-gray-700 leading-relaxed">
+                            SQL, or **Structured Query Language**, is a domain-specific language used in programming and designed for managing data held in a relational database management system (RDBMS). It is the standard language for relational database systems. It is primarily used to perform tasks such as retrieving data, modifying data, and managing database structures (schemas). It is essentially the communication bridge between a user and a database.
+                        </p>
+                    </section>
+                    
+                    <section class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-2xl font-semibold text-sql-blue mb-3 flex items-center">
+                                ${getGeneralIconSvg('Clock', '#104e8b', 'w-6 h-6 mr-2')}
+                                The History: When was it founded?
+                            </h3>
+                            <p class="text-gray-700 leading-relaxed">
+                                SQL's origins trace back to the **1970s** at IBM. It was originally called **SEQUEL** (Structured English Query Language) and was developed by Donald D. Chamberlin and Raymond F. Boyce. The first commercial implementation was released by Relational Software Inc. (now Oracle) in the late 1970s. It became an **ANSI standard in 1986** and an **ISO standard in 1987**, cementing its role as the definitive database language.
+                            </p>
+                        </div>
+                        <div>
+                            <h3 class="text-2xl font-semibold text-sql-blue mb-3 flex items-center">
+                                ${getGeneralIconSvg('Server', '#104e8b', 'w-6 h-6 mr-2')}
+                                Where is it Used? (Applications)
+                            </h3>
+                            <ul class="list-disc list-inside text-gray-700 space-y-2 pl-4">
+                                <li>**Web Applications:** Handling user data, sessions, and content management (e.g., e-commerce, social media feeds).</li>
+                                <li>**Business Intelligence (BI):** Powering dashboards and generating reports from large datasets.</li>
+                                <li>**Financial Systems:** Managing transactions, accounts, and market data.</li>
+                                <li>**Data Warehousing:** Storing and querying massive amounts of historical data for complex analysis.</li>
+                            </ul>
+                        </div>
+                    </section>
+                    
+                    <section>
+                        <h3 class="text-2xl font-semibold text-sql-blue mb-3 flex items-center">
+                            ${getGeneralIconSvg('CPU', '#104e8b', 'w-6 h-6 mr-2')}
+                            Key Technologies and Companies
+                        </h3>
+                        <p class="text-gray-700 mb-4 leading-relaxed">
+                            SQL is used by virtually every major tech company and organization globally. It underpins the infrastructure of the web and enterprise systems. Key relational database systems that speak SQL include:
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="p-4 bg-sql-light rounded-lg shadow-md text-center">
+                                <p class="text-xl font-bold text-sql-blue">Oracle Database</p>
+                                <p class="text-sm text-gray-600">Enterprise Applications</p>
+                            </div>
+                            <div class="p-4 bg-sql-light rounded-lg shadow-md text-center">
+                                <p class="text-xl font-bold text-sql-blue">MySQL</p>
+                                <p class="text-sm text-gray-600">Web Development (LAMP stack)</p>
+                            </div>
+                            <div class="p-4 bg-sql-light rounded-lg shadow-md text-center">
+                                <p class="text-xl font-bold text-sql-blue">PostgreSQL</p>
+                                <p class="text-sm text-gray-600">Open Source & GIS</p>
+                            </div>
+                            <div class="p-4 bg-sql-light rounded-lg shadow-md text-center">
+                                <p class="text-xl font-bold text-sql-blue">Microsoft SQL Server</p>
+                                <p class="text-sm text-gray-600">Windows Ecosystem & Azure</p>
+                            </div>
+                        </div>
+                    </section>
+
+                </div>
+            `;
+        }
+
+        // --- View 2: Read More Page Renderer (Icons Updated) ---
+        function renderReadMorePage(config) {
+            return `
+                <div class="space-y-12">
+                    <h2 class="text-3xl font-extrabold text-gray-800 border-b pb-3 mb-8">
+                        ⭐ THE FIVE MAJOR SQL COMMAND GROUPS (Deep Explanation)
+                    </h2>
+                    <p class="text-gray-700 mb-6">
+                        SQL commands fall into five major categories, each governing a critical aspect of database management: DDL, DML, DQL, DCL, and TCL.
+                    </p>
+                    
+                    <!-- 1. DDL - Data Definition Language -->
+                    <section class="space-y-6 p-6 border border-blue-200 rounded-xl bg-blue-50">
+                        <h3 class="text-2xl font-bold text-blue-700 flex items-center">
+                            ${getGeneralIconSvg('Schema', '#1d4ed8', 'w-6 h-6 mr-2')}
+                            1. DDL – Data Definition Language
+                        </h3>
+                        <p class="text-gray-700">DDL commands define, create, alter, or remove database structures (the schema). **DDL commands are irreversible and automatically trigger a COMMIT.**</p>
+
+                        <h4 class="text-xl font-bold text-gray-800 pt-2">⭐ Key DDL Commands:</h4>
+                        <table class="w-full sql-table rounded-lg overflow-hidden border">
+                            <thead>
+                                <tr><th>Command</th><th>Meaning</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">CREATE</span></td><td>Create databases, tables, views, indexes</td></tr>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">ALTER</span></td><td>Modify tables, columns, constraints, indexes</td></tr>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">DROP</span></td><td>Permanently delete objects (structure and data)</td></tr>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">TRUNCATE</span></td><td>Delete all rows instantly (resets auto_increment)</td></tr>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">RENAME</span></td><td>Rename tables or other objects</td></tr>
+                                <tr><td><span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">COMMENT</span></td><td>Add comments to object metadata</td></tr>
+                            </tbody>
+                        </table>
+                        
+                        <!-- CREATE Detail -->
+                        <h4 class="text-xl font-semibold text-sql-blue pt-4">🔹 1.1 CREATE (Deep Explanation)</h4>
+                        <p class="text-gray-700 font-medium">What it does internally:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Allocates physical storage space in data files.</li>
+                            <li>Writes metadata (definition) to the system catalog (dictionary tables).</li>
+                            <li>Initializes the new object with default parameters.</li>
+                        </ul>
+                        <p class="font-medium text-gray-700 mt-3">Example (Table Creation)</p>
+                        <pre class="sql-example">CREATE TABLE employees (
+    emp_id SERIAL PRIMARY KEY,
+    full_name VARCHAR(100) NOT NULL,
+    salary DECIMAL(10,2),
+    department_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);</pre>
+
+                        <!-- ALTER Detail -->
+                        <h4 class="text-xl font-semibold text-sql-blue pt-4">🔹 1.2 ALTER</h4>
+                        <p class="text-gray-700">Modifies the structure of existing database objects.</p>
+                        <p class="font-medium text-gray-700 mt-3">Example: Adding a column</p>
+                        <pre class="sql-example">ALTER TABLE employees ADD COLUMN designation VARCHAR(50);</pre>
+                        <p class="font-medium text-gray-700 mt-3">Example: Changing a datatype</p>
+                        <pre class="sql-example">ALTER TABLE employees 
+MODIFY salary DECIMAL(12,2);</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>May lock the entire table depending on the storage engine.</li>
+                            <li>Might require a table rebuild, which can be a slow operation on large tables.</li>
+                            <li>Updates the system metadata in the catalog.</li>
+                        </ul>
+
+                        <!-- DROP Detail -->
+                        <h4 class="text-xl font-semibold text-sql-blue pt-4">🔹 1.3 DROP</h4>
+                        <p class="text-gray-700">Deletes database objects permanently.</p>
+                        <pre class="sql-example">DROP TABLE employees;</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Removes the object's metadata from the system dictionary tables.</li>
+                            <li>Releases all associated physical storage space.</li>
+                            <li>**Crucially: Cannot be rolled back.**</li>
+                        </ul>
+                        
+                        <!-- TRUNCATE Detail -->
+                        <h4 class="text-xl font-semibold text-sql-blue pt-4">🔹 1.4 TRUNCATE</h4>
+                        <p class="text-gray-700">Deletes all rows very quickly by deallocating the pages used by the table data.</p>
+                        <pre class="sql-example">TRUNCATE TABLE employees;</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Resets any identity counters (e.g., auto-increment sequences).</li>
+                            <li>Deletes all rows without logging each individual row deletion (minimal transaction log impact).</li>
+                            <li>Classified as DDL and is **auto-committed**, making it much faster than <span class="font-mono bg-red-100 text-red-800 px-1 rounded">DELETE</span>.</li>
+                        </ul>
+                        
+                        <!-- RENAME Detail -->
+                        <h4 class="text-xl font-semibold text-sql-blue pt-4">🔹 1.5 RENAME</h4>
+                        <p class="text-gray-700">Changes the name of a table or object.</p>
+                        <pre class="sql-example">RENAME TABLE employees TO staff;</pre>
+                    </section>
+                    
+                    <!-- 2. DML - Data Manipulation Language -->
+                    <section class="space-y-6 p-6 border border-green-200 rounded-xl bg-green-50">
+                        <h3 class="text-2xl font-bold text-green-700 flex items-center">
+                            ${getGeneralIconSvg('Edit', '#059669', 'w-6 h-6 mr-2')}
+                            2. DML – Data Manipulation Language
+                        </h3>
+                        <p class="text-gray-700">These commands manipulate data **inside** tables. DML operations are performed within transactions and **can be rolled back**.</p>
+                        
+                        <h4 class="text-xl font-bold text-gray-800 pt-2">⭐ Key DML Commands:</h4>
+                        <table class="w-full sql-table rounded-lg overflow-hidden border">
+                            <thead>
+                                <tr><th>Command</th><th>Meaning</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><span class="font-mono bg-green-100 text-green-800 px-2 py-0.5 rounded">INSERT</span></td><td>Add new records (rows)</td></tr>
+                                <tr><td><span class="font-mono bg-green-100 text-green-800 px-2 py-0.5 rounded">UPDATE</span></td><td>Modify existing records</td></tr>
+                                <tr><td><span class="font-mono bg-green-100 text-green-800 px-2 py-0.5 rounded">DELETE</span></td><td>Remove records (rows) selectively</td></tr>
+                                <tr><td><span class="font-mono bg-green-100 text-green-800 px-2 py-0.5 rounded">MERGE</span></td><td>Insert/Update intelligently (Upsert)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- INSERT Detail -->
+                        <h4 class="text-xl font-semibold text-green-800 pt-4">🔹 2.1 INSERT</h4>
+                        <p class="text-gray-700">Adds new rows to a table.</p>
+                        <p class="font-medium text-gray-700 mt-3">Example</p>
+                        <pre class="sql-example">INSERT INTO employees (full_name, salary, department_id)
+VALUES ('Amit Kumar', 45000, 3);</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Acquires row-level or table locks to ensure consistency.</li>
+                            <li>The record is written to a data page in the database file.</li>
+                            <li>Index entries are created for the new row.</li>
+                            <li>The operation is logged in the transaction logs.</li>
+                        </ul>
+
+                        <!-- UPDATE Detail -->
+                        <h4 class="text-xl font-semibold text-green-800 pt-4">🔹 2.2 UPDATE</h4>
+                        <p class="text-gray-700">Modifies data in existing rows.</p>
+                        <pre class="sql-example">UPDATE employees 
+SET salary = salary + 2000
+WHERE department_id = 3;</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Locks only the required rows (optimistic locking is common).</li>
+                            <li>A "before-image" of the modified row is saved, which is necessary for a potential <span class="font-mono bg-red-100 text-red-800 px-1 rounded">ROLLBACK</span>.</li>
+                            <li>Affected indexes are automatically updated.</li>
+                        </ul>
+
+                        <!-- DELETE Detail -->
+                        <h4 class="text-xl font-semibold text-green-800 pt-4">🔹 2.3 DELETE</h4>
+                        <p class="text-gray-700">Removes specific rows from a table.</p>
+                        <pre class="sql-example">DELETE FROM employees WHERE emp_id = 10;</pre>
+                        <p class="text-gray-700 font-medium mt-3">Internal Notes:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>**Logs each row deletion** individually, making it slower than <span class="font-mono bg-red-100 text-red-800 px-1 rounded">TRUNCATE</span>.</li>
+                            <li>The operation **can be rolled back** using <span class="font-mono bg-red-100 text-red-800 px-1 rounded">ROLLBACK</span>.</li>
+                        </ul>
+                        
+                        <!-- MERGE Detail -->
+                        <h4 class="text-xl font-semibold text-green-800 pt-4">🔹 2.4 MERGE (Advanced)</h4>
+                        <p class="text-gray-700">Used for **Upsert** (Update + Insert). It conditionally updates or inserts rows from a source table into a target table.</p>
+                        <pre class="sql-example">MERGE INTO target t
+USING source s
+ON (t.id = s.id)
+WHEN MATCHED THEN 
+    UPDATE SET t.name = s.name
+WHEN NOT MATCHED THEN 
+    INSERT (id, name) VALUES (s.id, s.name);</pre>
+                    </section>
+                    
+                    <!-- 3. DQL - Data Query Language -->
+                    <section class="space-y-6 p-6 border border-yellow-200 rounded-xl bg-yellow-50">
+                        <h3 class="text-2xl font-bold text-yellow-700 flex items-center">
+                            ${getGeneralIconSvg('Search', '#d97706', 'w-6 h-6 mr-2')}
+                            3. DQL – Data Query Language
+                        </h3>
+                        <p class="text-gray-700">DQL is solely focused on querying and extracting data from the database. It does not modify data or schema.</p>
+                        
+                        <h4 class="text-xl font-bold text-gray-800 pt-2">⭐ Key DQL Command: <span class="font-mono bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">SELECT</span></h4>
+
+                        <p class="font-medium text-gray-700 mt-3">Example: Basic SELECT</p>
+                        <pre class="sql-example">SELECT * FROM employees;</pre>
+                        <p class="font-medium text-gray-700 mt-3">Example: With Conditions</p>
+                        <pre class="sql-example">SELECT full_name, salary 
+FROM employees 
+WHERE salary > 50000;</pre>
+                        <p class="font-medium text-gray-700 mt-3">Example: Aggregations</p>
+                        <pre class="sql-example">SELECT department_id, AVG(salary) AS avg_salary
+FROM employees
+GROUP BY department_id;</pre>
+                        
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>**Query Optimizer** creates the most efficient execution plan (e.g., deciding which indexes to use, join order).</li>
+                            <li>The engine reads data pages from the **buffer/cache** first, falling back to disk reads if the data is not in memory.</li>
+                            <li>It processes the results by applying filters (<span class="font-mono bg-red-100 text-red-800 px-1 rounded">WHERE</span>) and projections (column list) before returning the final result set.</li>
+                        </ul>
+                    </section>
+
+                    <!-- 4. DCL - Data Control Language -->
+                    <section class="space-y-6 p-6 border border-red-200 rounded-xl bg-red-50">
+                        <h3 class="text-2xl font-bold text-red-700 flex items-center">
+                            ${getGeneralIconSvg('Lock', '#dc2626', 'w-6 h-6 mr-2')}
+                            4. DCL – Data Control Language
+                        </h3>
+                        <p class="text-gray-700">DCL commands are used to **control access and permissions** to the data and objects, managing database security and user roles.</p>
+                        
+                        <h4 class="text-xl font-bold text-gray-800 pt-2">⭐ Key DCL Commands:</h4>
+                        <table class="w-full sql-table rounded-lg overflow-hidden border">
+                            <thead>
+                                <tr><th>Command</th><th>Purpose</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><span class="font-mono bg-red-100 text-red-800 px-2 py-0.5 rounded">GRANT</span></td><td>Give user or role specific privileges</td></tr>
+                                <tr><td><span class="font-mono bg-red-100 text-red-800 px-2 py-0.5 rounded">REVOKE</span></td><td>Remove user or role privileges</td></tr>
+                                <tr><td><span class="font-mono bg-red-100 text-red-800 px-2 py-0.5 rounded">DENY</span></td><td>Explicitly deny permission (Used in SQL Server)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- GRANT Detail -->
+                        <h4 class="text-xl font-semibold text-red-800 pt-4">🔹 4.1 GRANT</h4>
+                        <p class="text-gray-700">Grants specific permissions on database objects to a user or role.</p>
+                        <pre class="sql-example">GRANT SELECT, INSERT ON employees TO user1;</pre>
+
+                        <!-- REVOKE Detail -->
+                        <h4 class="text-xl font-semibold text-red-800 pt-4">🔹 4.2 REVOKE</h4>
+                        <p class="text-gray-700">Removes permissions previously granted.</p>
+                        <pre class="sql-example">REVOKE INSERT ON employees FROM user1;</pre>
+                        
+                        <p class="text-gray-700 font-medium mt-3">Internal Behavior:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Updates permission tables within the system catalog.</li>
+                            <li>Changes are immediate and do not require table locks.</li>
+                        </ul>
+                    </section>
+                    
+                    <!-- 5. TCL - Transaction Control Language -->
+                    <section class="space-y-6 p-6 border border-purple-200 rounded-xl bg-purple-50">
+                        <h3 class="text-2xl font-bold text-purple-700 flex items-center">
+                            ${getGeneralIconSvg('Rotate', '#7e22ce', 'w-6 h-6 mr-2')}
+                            5. TCL – Transaction Control Language
+                        </h3>
+                        <p class="text-gray-700">TCL commands manage transactions—atomic units of work that ensure data integrity (ACID properties) by defining when DML changes become permanent.</p>
+                        
+                        <h4 class="text-xl font-bold text-gray-800 pt-2">⭐ Key TCL Commands:</h4>
+                        <table class="w-full sql-table rounded-lg overflow-hidden border">
+                            <thead>
+                                <tr><th>Command</th><th>Description</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td><span class="font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded">COMMIT</span></td><td>Save all changes permanently</td></tr>
+                                <tr><td><span class="font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded">ROLLBACK</span></td><td>Undo all changes since the last COMMIT or START TRANSACTION</td></tr>
+                                <tr><td><span class="font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded">SAVEPOINT</span></td><td>Create an internal marker to partially rollback to</td></tr>
+                                <tr><td><span class="font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded">SET TRANSACTION</span></td><td>Define transaction properties (e.g., isolation level)</td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- COMMIT Detail -->
+                        <h4 class="text-xl font-semibold text-purple-800 pt-4">🔹 5.1 COMMIT</h4>
+                        <p class="text-gray-700">Makes all changes within the current transaction permanent.</p>
+                        <pre class="sql-example">COMMIT;</pre>
+
+                        <!-- ROLLBACK Detail -->
+                        <h4 class="text-xl font-semibold text-purple-800 pt-4">🔹 5.2 ROLLBACK</h4>
+                        <p class="text-gray-700">Reverts all changes since the last COMMIT or the start of the transaction.</p>
+                        <pre class="sql-example">ROLLBACK;</pre>
+                        
+                        <!-- SAVEPOINT Detail -->
+                        <h4 class="text-xl font-semibold text-purple-800 pt-4">🔹 5.3 SAVEPOINT</h4>
+                        <p class="text-gray-700">Sets an internal marker within a transaction, allowing a partial rollback.</p>
+                        <pre class="sql-example">SAVEPOINT point1;
+UPDATE employees SET salary = 10000 WHERE emp_id = 1;
+ROLLBACK TO point1;</pre>
+
+                        <!-- SET TRANSACTION Detail -->
+                        <h4 class="text-xl font-semibold text-purple-800 pt-4">🔹 5.4 SET TRANSACTION</h4>
+                        <p class="text-gray-700">Defines the characteristics (like isolation level) for the current transaction.</p>
+                        <pre class="sql-example">SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;</pre>
+                    </section>
+
+                    <!-- Deep Data Operations Explained -->
+                    <section class="space-y-6 p-6 border border-gray-400 rounded-xl bg-gray-100">
+                        <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                            <span class="text-3xl mr-2">🔥</span> DEEP DATA OPERATIONS EXPLAINED
+                        </h3>
+                        <p class="text-gray-700 font-bold">Understanding the internal mechanisms of DML and DQL is crucial for performance and reliability.</p>
+
+                        <h4 class="text-xl font-semibold text-gray-700 pt-4">⭐ 1. INSERT Operation – Deep Explanation</h4>
+                        <p class="font-medium text-gray-700">What happens inside the DB engine:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Parser validates syntax and Optimizer checks constraints.</li>
+                            <li>Engine acquires necessary locks (row or table).</li>
+                            <li>The record is inserted into an available data page.</li>
+                            <li>New entries are created in all associated indexes.</li>
+                            <li>A detailed record of the change is logged in the transaction log file.</li>
+                            <li><span class="font-mono bg-purple-100 text-purple-800 px-1 rounded">COMMIT</span> finalizes the changes.</li>
+                        </ul>
+
+                        <h4 class="text-xl font-semibold text-gray-700 pt-4">⭐ 2. UPDATE Operation – Deep Explanation</h4>
+                        <p class="font-medium text-gray-700">Internal operations:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Finds rows using the most efficient access method (index or scan).</li>
+                            <li>Locks the rows targeted for modification.</li>
+                            <li>Stores a **“before image”** of the data (used for rollback).</li>
+                            <li>Updates the record in the data page and updates associated indexes automatically.</li>
+                            <li>Marks the page as **“dirty”** (modified in memory) for later flushing to disk.</li>
+                        </ul>
+                        
+                        <h4 class="text-xl font-semibold text-gray-700 pt-4">⭐ 3. DELETE Operation – Deep Explanation</h4>
+                        <p class="font-medium text-gray-700">Steps:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>Locates rows using the <span class="font-mono bg-yellow-100 text-yellow-800 px-1 rounded">WHERE</span> clause.</li>
+                            <li>Acquires locks on the rows.</li>
+                            <li>Writes a **delete log record** for each row removed.</li>
+                            <li>Deletes the index entries.</li>
+                            <li>In some engines (like InnoDB), the row is initially marked as a **ghost record**, and physical storage is cleaned later by a background thread (Purge thread).</li>
+                        </ul>
+
+                        <h4 class="text-xl font-semibold text-gray-700 pt-4">⭐ 4. SELECT (DQL) – Deep Execution Flow</h4>
+                        <p class="font-medium text-gray-700">Steps:</p>
+                        <ul class="list-disc list-inside text-gray-700 ml-4 space-y-1">
+                            <li>**SQL Parser:** Checks for syntax correctness.</li>
+                            <li>**Query Optimizer:** Selects the optimal execution plan (e.g., table scan, index scan, nested loop join, hash join).</li>
+                            <li>**Buffer Pool:** Attempts to load necessary data pages from memory cache first.</li>
+                            <li>The engine executes filters and projections as per the plan.</li>
+                            <li>The final **result set** is returned to the client.</li>
+                        </ul>
+                        <pre class="sql-example">SELECT e.full_name, d.department_name
+FROM employees e
+JOIN departments d ON e.department_id = d.department_id;</pre>
+                        
+                        <h4 class="text-xl font-semibold text-gray-700 pt-4">⭐ 5. TRUNCATE vs DELETE vs DROP (Deep Compare)</h4>
+                        <table class="w-full sql-table rounded-lg overflow-hidden border">
+                            <thead>
+                                <tr><th>Feature</th><th>DELETE (DML)</th><th>TRUNCATE (DDL)</th><th>DROP (DDL)</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Logs rows?</td><td>Yes (logs each row deletion)</td><td>No (logs page deallocation)</td><td>No</td></tr>
+                                <tr><td>Rollback possible?</td><td>Yes (if not committed)</td><td>No (DDL auto-commits)</td><td>No</td></tr>
+                                <tr><td>Removes structure?</td><td>No (removes data only)</td><td>No (removes data only)</td><td>Yes (removes structure and data)</td></tr>
+                                <tr><td>Resets auto increment?</td><td>No</td><td>Yes</td><td>N/A</td></tr>
+                                <tr><td>Speed</td><td>Slower (due to logging/locks)</td><td>Fastest (minimal logging)</td><td>Fast (metadata removal)</td></tr>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+            `;
+        }
+        
+        // --- View 3: SQL Tester Page Renderer ---
+        function renderTesterPage(config) {
+            // The HTML structure is now returned as a template literal string
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-3xl font-bold text-gray-800 border-b pb-3 mb-6">${config.title}</h2>
+                    <p class="text-gray-500">${config.description}</p>
+                    
+                    <!-- Main Query Input Section -->
+                    <div class="mb-6">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-3">SQL Query Input</h3>
+                        <textarea
+                            id="queryInput"
+                            class="w-full p-4 h-48 rounded-lg resize-none focus:ring-4 focus:ring-blue-200 focus:border-blue-500 transition duration-150"
+                            placeholder="Paste your raw SQL here..."
+                        ></textarea>
+                    </div>
+
+                    <div class="flex flex-wrap gap-4 mb-8">
+                        <button
+                            id="checkButton"
+                            onclick="checkQuery()"
+                            class="flex-1 min-w-[150px] bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-green-300"
+                        >
+                            Analyze & Format
+                        </button>
+                        <button
+                            id="toggleWarningsButton"
+                            onclick="toggleSuggestionsDisplay()"
+                            class="flex-1 min-w-[150px] bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-blue-300"
+                        >
+                            Show Warnings/Style Notes
+                        </button>
+                        <button
+                            id="downloadButton"
+                            onclick="downloadQuery()"
+                            class="flex-1 min-w-[150px] bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-4 focus:ring-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled
+                        >
+                            Download Formatted SQL
+                        </button>
+                        <button
+                            id="clearButton"
+                            onclick="clearInput()"
+                            class="flex-1 min-w-[150px] bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out focus:outline-none focus:ring-4 focus:ring-gray-300"
+                        >
+                            Clear Input
+                        </button>
+                    </div>
+
+
+                    <!-- Results Section -->
+                    <div id="results" class="mt-8 pt-6 border-t border-gray-200 hidden">
+                        <!-- This title is dynamic based on showAllSuggestions state -->
+                        <h3 id="suggestionsHeader" class="2xl font-semibold text-gray-700 mb-4">Critical Syntax Errors</h3>
+                        <div id="suggestionsList">
+                            
+                        </div>
+                        
+                        <div id="summary" class="mt-6 p-4 rounded-lg text-center font-medium shadow-inner bg-green-100 text-green-700">
+                            
+                        </div>
+
+                        <!-- Formatting and Style Correction Container -->
+                        <div id="formattingContainer">
+                            <div class="flex justify-between items-center mt-8 mb-4">
+                                <h3 class="2xl font-semibold text-gray-700">Formatted Query (Style Correction)</h3>
+                                <button
+                                    id="copyButton"
+                                    onclick="copyFormattedQuery()"
+                                    class="bg-sql-blue hover:bg-sql-blue/90 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                            <pre id="formattedQueryOutput" class="text-gray-800"></pre>
+
+                            <!-- Section for explaining the fixes -->
+                            <h3 class="2xl font-semibold text-gray-700 mt-8 mb-4">Summary of Changes Applied</h3>
+                            <div id="fixSummary" class="p-4 bg-blue-50 rounded-lg border border-blue-200 text-gray-700">
+                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        /** * Attaches event listeners and sets up initial state after the Tester page renders.
+         * This function is CRUCIAL because the elements only exist after renderTesterPage is run.
+         */
+        function attachTesterListeners() {
+            // Ensure global variables point to the correct dynamically created DOM elements
+            window.queryInput = document.getElementById('queryInput');
+            window.resultsDiv = document.getElementById('results');
+            window.suggestionsList = document.getElementById('suggestionsList');
+            window.summaryDiv = document.getElementById('summary');
+            window.formattedQueryOutput = document.getElementById('formattedQueryOutput');
+            window.fixSummaryDiv = document.getElementById('fixSummary');
+            window.formattingContainer = document.getElementById('formattingContainer');
+            window.downloadButton = document.getElementById('downloadButton');
+            window.toggleWarningsButton = document.getElementById('toggleWarningsButton');
+            window.suggestionsHeader = document.getElementById('suggestionsHeader');
+            window.copyButton = document.getElementById('copyButton'); // New element reference
+        }
+
+        // --- NEW: Copy Functionality ---
+        function copyFormattedQuery() {
+            const outputElement = window.formattedQueryOutput;
+            const copyButton = window.copyButton; // Use the global reference
+            
+            if (!outputElement || !copyButton) return;
+
+            // Use a temporary textarea to hold the content for copying
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = outputElement.textContent;
+            
+            // Set styles to make it invisible and off-screen
+            tempTextarea.style.position = 'fixed';
+            tempTextarea.style.top = '0';
+            tempTextarea.style.left = '0';
+            tempTextarea.style.opacity = '0';
+            
+            // Append it to the document
+            document.body.appendChild(tempTextarea);
+
+            // Select the text
+            tempTextarea.select();
+            tempTextarea.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                // Execute the copy command (required format for iframe compatibility)
+                const successful = document.execCommand('copy');
+                
+                if (successful) {
+                    // Provide visual feedback
+                    const originalText = copyButton.textContent;
+                    const originalClass = copyButton.className;
+                    
+                    copyButton.textContent = 'Copied!';
+                    copyButton.classList.remove('bg-sql-blue', 'hover:bg-sql-blue/90');
+                    copyButton.classList.add('bg-green-600', 'hover:bg-green-600');
+                    
+                    // Revert text and style after a short delay
+                    setTimeout(() => {
+                        copyButton.textContent = originalText;
+                        copyButton.className = originalClass; // Revert to original classes
+                    }, 1500);
+                } else {
+                    console.error('Copy command failed.');
+                }
+            } catch (err) {
+                console.error('Unable to copy text:', err);
+            }
+
+            // Clean up the temporary textarea
+            document.body.removeChild(tempTextarea);
+        }
+        // --- END: Copy Functionality ---
+
+        // --- Core SQL Logic Functions (Kept Global for the SPA) ---
+        
+        // Regex to detect a missing comma in DDL: matches a datatype/constraint followed by an ADD/DROP/CHANGE/MODIFY/ADD INDEX keyword without an intervening comma
+        const missingDdlCommaRegex = /(\b(NOT\s+NULL|NULL|DEFAULT\s+\S+|INT|VARCHAR|CHAR|DATETIME|TEXT|DECIMAL|COLLATE\s+\S+|UNSIGNED)\b\s+(ADD\s+INDEX|ADD\s+COLUMN|ADD|DROP|CHANGE|MODIFY)\b)/gi;
+
+        function getNormalizedQuery() {
+            return window.queryInput ? window.queryInput.value.trim() : '';
+        }
+        
+        function collectSuggestion(type, message) {
+            allSuggestions.push({ type, message });
+        }
+        
+        function extractSqlFromPhp(text) {
+            const match = text.match(/\$(sql|query|statement)\s*=\s*["']([^"']*)["']/is);
+            if (match && match[2]) {
+                return match[2].trim();
+            }
+            return null; 
+        }
+
+        function downloadQuery() {
+            if (!window.formattedQueryOutput) return;
+            const content = window.formattedQueryOutput.textContent;
+            if (!content) return;
+
+            const blob = new Blob([content], { type: 'text/sql' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'formatted_sql_queries.sql'; 
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
+
+        function toggleSuggestionsDisplay() {
+            if (!window.suggestionsList) return;
+            showAllSuggestions = !showAllSuggestions;
+            displaySuggestions();
+            
+            if (showAllSuggestions) {
+                window.toggleWarningsButton.textContent = 'Hide Warnings/Style Notes';
+                window.toggleWarningsButton.classList.add('toggle-active');
+            } else {
+                window.toggleWarningsButton.textContent = 'Show Warnings/Style Notes';
+                window.toggleWarningsButton.classList.remove('toggle-active');
+            }
+        }
+        
+        function displaySuggestions() {
+            if (!window.suggestionsList) return;
+            window.suggestionsList.innerHTML = '';
+            
+            const suggestionsToDisplay = showAllSuggestions
+                ? allSuggestions
+                : allSuggestions.filter(s => s.type === 'error');
+
+            if (showAllSuggestions) {
+                window.suggestionsHeader.textContent = `All Issues and Style Notes (${suggestionsToDisplay.length} total)`;
+            } else {
+                window.suggestionsHeader.textContent = 'Critical Syntax Errors';
+            }
+
+            if (suggestionsToDisplay.length === 0) {
+                 const item = document.createElement('div');
+                 item.className = 'suggestion bg-green-100 text-green-700 border-l-4 border-green-500';
+                 item.innerHTML = getSuggestionIconSvg('info') + '<span>No critical syntax errors found. Excellent query!</span>';
+                 window.suggestionsList.appendChild(item);
+                 return;
+            }
+
+            suggestionsToDisplay.forEach(s => {
+                const item = document.createElement('div');
+                let cssClass = s.type; 
+                item.className = `suggestion ${cssClass}`;
+                item.innerHTML = getSuggestionIconSvg(s.type) + `<span>${s.message}</span>`;
+                window.suggestionsList.appendChild(item);
+            });
+        }
+        
+        function formatQuery(queryText) {
+            if (!queryText) return '';
+
+            let formattedQuery = queryText.replace(/[\s\t]+/g, ' ').trim();
+            if (!formattedQuery.endsWith(';')) {
+                formattedQuery += ';';
+            }
+            
+            const placeholders = {};
+            let placeholderCount = 0;
+
+            // Preserve content inside parentheses (like function calls or constraint definitions)
+            formattedQuery = formattedQuery.replace(/\((.*?)\)/g, (match) => {
+                const placeholder = `__PAREN_${placeholderCount++}__`;
+                placeholders[placeholder] = match;
+                return placeholder;
+            });
+
+            const primaryKeywords = [
+                'SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'HAVING', 'LIMIT', 'OFFSET',
+                'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'JOIN', 
+                'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM', 'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE', 'TRUNCATE TABLE', 'RENAME', 
+                'MERGE', 'GRANT', 'REVOKE', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'SET TRANSACTION',
+                'CREATE INDEX', 'DROP INDEX', 'CREATE VIEW', 'ALTER VIEW', 'DROP VIEW',
+                'CREATE PROCEDURE', 'ALTER PROCEDURE', 'DROP PROCEDURE', 'CREATE FUNCTION', 'ALTER FUNCTION', 'DROP FUNCTION',
+                'CREATE TRIGGER', 'DROP TRIGGER'
+            ];
+            
+            const ddlModifiers = ['ADD COLUMN', 'DROP COLUMN', 'CHANGE COLUMN', 'MODIFY COLUMN', 'RENAME TO', 'ADD INDEX', 'ADD', 'DROP', 'CHANGE', 'MODIFY'];
+
+            // 1. Keyword capitalization and line breaks
+            primaryKeywords.sort((a, b) => b.length - a.length); 
+            primaryKeywords.forEach(keyword => {
+                const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+                formattedQuery = formattedQuery.replace(regex, (match) => {
+                    const uppercaseMatch = match.toUpperCase();
+                    if (formattedQuery.toLowerCase().trim().startsWith(match.toLowerCase())) {
+                        return uppercaseMatch;
+                    }
+                    return `\n    ${uppercaseMatch}`;
+                });
+            });
+            
+            // 2. Fix missing DDL commas (e.g., INT NOT NULL ADD COLUMN -> INT NOT NULL, ADD COLUMN)
+            const ddlCorrectionRegex = /(NOT NULL|NULL|DATETIME|INT|VARCHAR|CHAR|DECIMAL|TEXT|DEFAULT \S+|COLLATE \S+|UNSIGNED)\s+(ADD\s+COLUMN|ADD\s+INDEX|ADD|DROP|CHANGE|MODIFY)\b/gi;
+
+            formattedQuery = formattedQuery.replace(ddlCorrectionRegex, (match, p1, p2) => {
+                return `${p1.toUpperCase()},\n        ${p2.toUpperCase()}`;
+            });
+            
+            // 3. Remove unnecessary parenthesis from default functions (e.g., DEFAULT (NOW()) -> DEFAULT NOW())
+            formattedQuery = formattedQuery.replace(/\s+DEFAULT\s+\s*(?:\()(\s*(CURRENT_DATE|CURRENT_TIMESTAMP|NOW)\s*?)\)/gi, (match, func) => {
+                return ` DEFAULT ${func.toUpperCase()}`;
+            });
+            
+            // 4. DDL secondary line breaks (ADD, DROP, etc.)
+            ddlModifiers.sort((a, b) => b.length - b.length);
+            ddlModifiers.forEach(modifier => {
+                 const regex = new RegExp(`\\b${modifier}\\b`, 'gi');
+                 formattedQuery = formattedQuery.replace(regex, (match) => `\n        ${match.toUpperCase()}`);
+            });
+            
+            // 5. Column separator line breaks (after comma)
+            formattedQuery = formattedQuery.replace(/,(\s*)(?![ \t]*\n)/g, ',\n        ');
+            
+            // 6. Cleanup and semicolon placement
+            formattedQuery = formattedQuery.replace(/;\s*$/, ';');
+            formattedQuery = formattedQuery.replace(/\n\s*;/g, ';');
+            formattedQuery = formattedQuery.replace(/\n\n+/g, '\n');
+            formattedQuery = formattedQuery.replace(/^\s*\n/g, '');
+            
+            // 7. Restore parentheses
+            for (const placeholder in placeholders) {
+                formattedQuery = formattedQuery.replace(placeholder, placeholders[placeholder]);
+            }
+            
+            // 8. Specific multi-part keyword fix (bring ON UPDATE back to its line)
+            formattedQuery = formattedQuery.replace(/DEFAULT\s+CURRENT_TIMESTAMP\s*\n\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP/g, 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+
+
+            return formattedQuery.trim();
+        }
+
+        function showFixSummary(originalQuery, totalStatements) {
+            if (!window.fixSummaryDiv) return;
+            let fixes = [];
+            const lowerOriginal = originalQuery.toLowerCase();
+            
+            if (totalStatements > 1) {
+                fixes.push({ type: 'style', message: `Detected and processed ${totalStatements} individual SQL statements (separated by \`;\`).` });
+            }
+
+            const isCriticalFixApplied = missingDdlCommaRegex.test(originalQuery);
+            if (isCriticalFixApplied) {
+                fixes.push({ type: 'critical', message: 'Corrected missing commas (`,`) between chained DDL operations (including ADD INDEX) to prevent critical syntax errors.' });
+            }
+
+            const defaultFuncFixRegex = /\s+DEFAULT\s+\s*(?:\()(\s*(CURRENT_DATE|CURRENT_TIMESTAMP|NOW)\s*?)\)/gi;
+            if (defaultFuncFixRegex.test(originalQuery)) {
+                fixes.push({ type: 'critical', message: 'Corrected `DEFAULT (function)` syntax by removing unnecessary parentheses around functions.' });
+            }
+            
+            if (/\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP/i.test(originalQuery) && !originalQuery.includes('ON UPDATE CURRENT_TIMESTAMP')) {
+                 fixes.push({ type: 'style', message: 'Adjusted formatting of `ON UPDATE CURRENT_TIMESTAMP` to ensure it remains on a single line for clarity.' });
+            }
+
+            let hasLowercaseKeywords = false;
+            const keywords = ['select', 'from', 'where', 'order by', 'group by', 'join', 'alter table', 'add', 'not null', 'commit', 'grant', 'create table', 'on update current_timestamp', 'int', 'datetime'];
+            for (const keyword of keywords) {
+                if (lowerOriginal.includes(keyword) && !originalQuery.includes(keyword.toUpperCase())) {
+                    hasLowercaseKeywords = true;
+                    break;
+                }
+            }
+            if (hasLowercaseKeywords) {
+                fixes.push({ type: 'style', message: 'Normalized all SQL keywords (e.g., `create`, `int`) to standard UPPERCASE for readability.' });
+            }
+
+            if (originalQuery.includes('\n') || originalQuery.includes('\t') || originalQuery.includes('  ')) {
+                fixes.push({ type: 'style', message: 'Applied consistent indentation and line breaks to separate major clauses and sub-clauses.' });
+            }
+            
+            if (lowerOriginal.includes('alter table') && /\bADD\s+\w+\s+(INT|VARCHAR|DATETIME)\b/i.test(lowerOriginal) && !lowerOriginal.includes('add column')) {
+                fixes.push({ type: 'style', message: 'Explicitly added the `COLUMN` keyword (e.g., changed `ADD name` to `ADD COLUMN name`) for better DDL clarity.' });
+            }
+            
+            if (fixes.length === 0) {
+                window.fixSummaryDiv.innerHTML = '<p class="text-green-700">The input query was already well-formatted. Only minor spacing adjustments were made by the formatter.</p>';
+                return;
+            }
+
+            let html = '<ul class="space-y-3">';
+            fixes.forEach(fix => {
+                if (fix.type === 'critical') {
+                    html += `<li class="p-3 rounded-lg bg-red-100 text-red-800 font-semibold border-l-4 border-red-500 shadow-sm">
+                                🚨 CRITICAL FIX: ${fix.message}
+                             </li>`;
+                } else {
+                    html += `<li class="p-2 rounded-lg bg-blue-100 text-blue-800 border-l-4 border-blue-300">
+                                🎨 Style Adjustment: ${fix.message}
+                             </li>`;
+                }
+            });
+            html += '</ul>';
+
+            window.fixSummaryDiv.innerHTML = html;
+        }
+
+
+        function checkQuery() {
+            const query = getNormalizedQuery();
+            allSuggestions = []; 
+            
+            if (!window.resultsDiv) {
+                 // Component not yet rendered, skip check
+                 return;
+            }
+            window.resultsDiv.classList.add('hidden');
+            window.downloadButton.disabled = true;
+            window.copyButton.disabled = true;
+            
+            let criticalErrorCount = 0; 
+
+            showAllSuggestions = false; 
+            if(window.toggleWarningsButton) {
+                window.toggleWarningsButton.textContent = 'Show Warnings/Style Notes';
+                window.toggleWarningsButton.classList.remove('toggle-active');
+            }
+
+            if (!query) {
+                window.summaryDiv.className = 'mt-6 p-4 rounded-lg text-center font-medium shadow-inner bg-gray-100 text-gray-500';
+                window.summaryDiv.textContent = 'Awaiting SQL Input: Paste or generate a query to begin analysis.';
+                return;
+            }
+            
+            const extractedSql = extractSqlFromPhp(query);
+            const sqlToAnalyze = extractedSql || query; 
+            
+            if (extractedSql === null && (query.includes('<?php') || query.includes('function'))) {
+                 collectSuggestion('info', 'Code Structure Note: Input appears to be a programming language block. Analysis will run on the full block, which may lead to syntax errors.');
+            }
+
+            const rawStatements = sqlToAnalyze.split(';').map(s => s.trim()).filter(s => s.length > 0);
+            
+            let formattedOutput = '';
+            let totalStatements = 0;
+
+
+            if (rawStatements.length === 0) {
+                window.summaryDiv.className = 'mt-6 p-4 rounded-lg text-center font-medium shadow-inner bg-gray-100 text-gray-500';
+                window.summaryDiv.textContent = 'Awaiting SQL Input: Paste or generate a query to begin analysis.';
+                return;
+            }
+
+            const validStarts = [
+                'select', 'insert', 'update', 'delete', 'merge', 'create', 'alter', 
+                'drop', 'truncate', 'rename', 'grant', 'revoke', 'commit', 'rollback', 
+                'savepoint', 'set' 
+            ];
+            const startsRegex = new RegExp(`^\\s*(${validStarts.join('|')})`, 'i');
+
+
+            for (let i = 0; i < rawStatements.length; i++) {
+                const statement = rawStatements[i];
+                const lowerStatement = statement.toLowerCase();
+                totalStatements++;
+                
+                // --- CRITICAL: Missing Initial Keyword Check ---
+                if (!startsRegex.test(lowerStatement)) {
+                    collectSuggestion('error', 
+                        `Statement #${i + 1} Structure Error: Statement does not begin with a valid SQL command keyword.`);
+                    criticalErrorCount++;
+                }
+                
+                // --- DDL Specific Checks ---
+                if (lowerStatement.startsWith('alter table')) {
+                    const missingAddKeywordRegex = /\bALTER\s+TABLE\s+`?\w+`?\s+(?:(?!ADD|DROP|CHANGE|MODIFY|RENAME\s+COLUMN|RENAME\s+TO)\S+\s*)*\bCOLUMN\b\s+`?\w+`?/gi;
+                    if (missingAddKeywordRegex.test(statement)) {
+                        collectSuggestion('error', `Statement #${i + 1} Syntax Error: Detected <code class="font-mono bg-red-200 px-1 py-0.5 rounded text-red-800">ALTER TABLE ... COLUMN</code> without a required DDL modifier (<code class="font-mono bg-red-200 px-1 py-0.5 rounded text-red-800">ADD</code>, <code class="font-mono bg-red-200 px-1 py-0.5 rounded text-red-800">CHANGE</code>, or <code class="font-mono bg-red-200 px-1 py-0.5 rounded text-red-800">MODIFY</code>).`);
+                        criticalErrorCount++;
+                    }
+
+                    const columnNames = [];
+                    const columnNameRegex = /(?:ADD\s+COLUMN|ADD|CHANGE|MODIFY)\s+`?(\w+)`?(?:\s+[^,;]*?)(?:,|$)/gi;
+                    let colMatch;
+
+                    columnNameRegex.lastIndex = 0; 
+                    while ((colMatch = columnNameRegex.exec(statement))) {
+                        const name = colMatch[1].toLowerCase();
+                        if (columnNames.includes(name)) {
+                            collectSuggestion('error', `Statement #${i + 1} Critical Error: Duplicate column definition found for \`${name.toUpperCase()}\` within a single statement.`);
+                            criticalErrorCount++;
+                        }
+                        columnNames.push(name);
+                    }
+                }
+
+                if (missingDdlCommaRegex.test(statement)) { collectSuggestion('error', `Statement #${i + 1} Syntax Error: Missing comma (',') between column definition and subsequent DDL operation (e.g., INT NOT NULL ADD COLUMN...).`); criticalErrorCount++; }
+                
+                // --- Style and Safety Checks (Warnings/Info) ---
+                if (lowerStatement.includes('cswsuc_chnl_updated_by int') && !lowerStatement.includes('not null') && !lowerStatement.includes('int null')) {
+                    collectSuggestion('info', `Statement #${i + 1} Style Note: The column definition for \`cswsuc_chnl_updated_by\` is missing the <code class="font-mono bg-blue-200 px-1 py-0.5 rounded text-blue-800">NOT NULL</code> constraint. Consider adding it for data integrity.`);
+                }
+                
+                if (lowerStatement.includes('cswsuc_chnl_updated_on datetime') && !lowerStatement.includes('default')) {
+                    collectSuggestion('info', `Statement #${i + 1} Style Note: The \`cswsuc_chnl_updated_on\` column is a \`DATETIME\` but is missing a default value for proper auditing.`);
+                }
+                
+                if (lowerStatement.includes('alter table') && /\bADD\s+\w+\s+(INT|VARCHAR|DATETIME)\b/i.test(lowerStatement) && !lowerStatement.includes('add column')) {
+                    collectSuggestion('info', `Statement #${i + 1} Readability Note: It is better practice to explicitly use <code class="font-mono bg-blue-200 px-1 py-0.5 rounded text-blue-800">ADD COLUMN</code> instead of just <code class="font-mono bg-blue-200 px-1 py-0.5 rounded text-blue-800">ADD</code>.`);
+                }
+                
+                const formattedStatement = formatQuery(statement);
+                formattedOutput += `--- STATEMENT #${i + 1} ---\n${formattedStatement}\n\n`;
+            }
+            
+            // --- Final Summary and Formatting ---
+            window.resultsDiv.classList.remove('hidden');
+            displaySuggestions(); 
+
+            if (criticalErrorCount > 0) {
+                window.formattingContainer.classList.add('hidden');
+                window.formattedQueryOutput.textContent = '';
+                window.fixSummaryDiv.innerHTML = ''; 
+                window.downloadButton.disabled = true;
+                window.copyButton.disabled = true;
+                
+                window.summaryDiv.className = 'mt-6 p-4 rounded-lg text-center font-medium shadow-inner bg-red-100 text-red-700';
+                window.summaryDiv.textContent = `❌ Found ${criticalErrorCount} Critical Syntax Error(s). The query must be fixed manually.`;
+            } else {
+                window.formattingContainer.classList.remove('hidden');
+                window.downloadButton.disabled = false;
+                window.copyButton.disabled = false;
+
+                if (extractedSql) {
+                    const phpOutput = `<?php
+/**
+ * Executes a database query containing ${totalStatements} statements.
+ */
+function execute_database_query() {
+    $sql_query = "
+${formattedOutput.trim().replace(/\n/g, '\n    ')}
+";
+
+    // Place your database execution execution logic here.
+    // Use a multi_query function if your library supports it.
+    // e.g. $result = $db->multi_query($sql_query); 
+}
+?>`;
+                    window.formattedQueryOutput.textContent = phpOutput.trim();
+                } else {
+                    window.formattedQueryOutput.textContent = formattedOutput.trim();
+                }
+                
+                showFixSummary(sqlToAnalyze, totalStatements);
+                
+                window.summaryDiv.className = 'mt-6 p-4 rounded-lg text-center font-medium shadow-inner bg-green-100 text-green-700';
+                window.summaryDiv.textContent = `✅ Analysis Complete: ${totalStatements} statements checked and successfully formatted. No critical syntax errors found.`;
+            }
+        }
+        
+        function clearInput() {
+            if (!window.queryInput) return;
+            window.queryInput.value = '';
+            if (window.resultsDiv) window.resultsDiv.classList.add('hidden');
+            if (window.suggestionsList) window.suggestionsList.innerHTML = '';
+            if (window.summaryDiv) window.summaryDiv.textContent = '';
+            if (window.formattedQueryOutput) window.formattedQueryOutput.textContent = '';
+            if (window.fixSummaryDiv) window.fixSummaryDiv.innerHTML = '';
+            if (window.formattingContainer) window.formattingContainer.classList.remove('hidden');
+            if (window.downloadButton) window.downloadButton.disabled = true;
+            if (window.copyButton) window.copyButton.disabled = true;
+            allSuggestions = [];
+            showAllSuggestions = false;
+            checkQuery(); 
+        }
+
+        // --- Initialization ---
+        // Start the application by rendering the Home page
+        window.onload = () => {
+            renderCurrentPage();
+        };
+
+    </script>
+</body>
+</html>
