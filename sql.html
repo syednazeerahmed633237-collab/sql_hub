@@ -116,25 +116,6 @@
         
         let allSuggestions = []; 
         let showAllSuggestions = false; 
-
-        // --- GEMINI API SETUP ---
-        const apiKey = ""; // Runtime environment provides the key
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
-
-        // Exponential backoff helper
-        async function fetchWithBackoff(url, options, retries = 3, delay = 1000) {
-            try {
-                const response = await fetch(url, options);
-                if (!response.ok && retries > 0) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response;
-            } catch (error) {
-                if (retries === 0) throw error;
-                await new Promise(resolve => setTimeout(resolve, delay));
-                return fetchWithBackoff(url, options, retries - 1, delay * 2);
-            }
-        }
     </script>
 
     <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl">
@@ -375,55 +356,6 @@
                     <h2 class="text-3xl font-extrabold text-gray-800 border-b pb-3 mb-8">
                         ⭐ THE FIVE MAJOR SQL COMMAND GROUPS (Deep Explanation)
                     </h2>
-
-                    <!-- NEW: SQL Learning Assistant Section -->
-                    <section class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6 shadow-sm mb-10">
-                        <div class="flex items-start space-x-4">
-                            <div class="bg-white p-3 rounded-full shadow-md text-sql-blue hidden sm:block">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                                </svg>
-                            </div>
-                            <div class="flex-1">
-                                <h3 class="text-2xl font-bold text-gray-800 mb-2">🤖 SQL Learning Assistant</h3>
-                                <p class="text-gray-600 mb-4">
-                                    Stuck on a concept? Ask me anything about SQL syntax, joins, normalization, or specific errors.
-                                </p>
-                                
-                                <div class="relative">
-                                    <textarea 
-                                        id="aiQuestionInput" 
-                                        class="w-full p-4 pr-32 border border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-sql-blue transition shadow-sm h-32 resize-none font-sans text-base"
-                                        placeholder="e.g., What is the difference between LEFT JOIN and INNER JOIN?"
-                                    ></textarea>
-                                    <button 
-                                        onclick="askGemini()"
-                                        id="askAiBtn"
-                                        class="absolute bottom-4 right-4 bg-sql-blue hover:bg-blue-800 text-white font-semibold py-2 px-4 rounded-lg shadow transition transform hover:scale-105"
-                                    >
-                                        Ask AI
-                                    </button>
-                                </div>
-
-                                <!-- AI Response Area -->
-                                <div id="aiResponseContainer" class="mt-6 hidden">
-                                    <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm relative">
-                                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Answer</h4>
-                                        <div id="aiResponseText" class="text-gray-800 leading-relaxed space-y-4"></div>
-                                        
-                                        <!-- Loading Spinner -->
-                                        <div id="aiLoading" class="hidden absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
-                                            <div class="flex flex-col items-center">
-                                                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-sql-blue mb-3"></div>
-                                                <span class="text-sm font-semibold text-sql-blue">Generating explanation...</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-
                     <p class="text-gray-700 mb-6">
                         SQL commands fall into five major categories, each governing a critical aspect of database management: DDL, DML, DQL, DCL, and TCL.
                     </p>
@@ -865,85 +797,6 @@ JOIN departments d ON e.department_id = d.department_id;</pre>
             window.toggleWarningsButton = document.getElementById('toggleWarningsButton');
             window.suggestionsHeader = document.getElementById('suggestionsHeader');
             window.copyButton = document.getElementById('copyButton'); // New element reference
-        }
-
-        // --- NEW: Gemini AI Integration ---
-        async function askGemini() {
-            const inputEl = document.getElementById('aiQuestionInput');
-            const responseContainer = document.getElementById('aiResponseContainer');
-            const responseTextEl = document.getElementById('aiResponseText');
-            const loadingEl = document.getElementById('aiLoading');
-            const btn = document.getElementById('askAiBtn');
-
-            const question = inputEl.value.trim();
-            if (!question) return;
-
-            // UI State: Loading
-            responseContainer.classList.remove('hidden');
-            loadingEl.classList.remove('hidden');
-            btn.disabled = true;
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            responseTextEl.innerHTML = ''; // Clear previous
-
-            // STRICT System Prompt
-            const systemPrompt = "You are a strictly defined SQL Learning Assistant. Your SOLE purpose is to help users with SQL, databases, and data management. You MUST REFUSE to answer any question that is not directly related to SQL, database schema, database management, or query optimization. If a user asks about general programming (like Python/JS not related to DBs), life, history, or anything else, reply: 'I can only assist with SQL and database-related questions.' Keep answers concise and use code blocks for examples.";
-
-            const payload = {
-                contents: [{ parts: [{ text: question }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
-            };
-
-            try {
-                const response = await fetchWithBackoff(`${API_URL}?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error.message || 'API Error');
-                }
-
-                const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (rawText) {
-                    responseTextEl.innerHTML = formatAIResponse(rawText);
-                } else {
-                    responseTextEl.innerHTML = '<p class="text-red-600">Sorry, I could not generate a response at this time.</p>';
-                }
-
-            } catch (error) {
-                console.error("AI Error:", error);
-                responseTextEl.innerHTML = `<p class="text-red-600">Error: ${error.message}. Please try again later.</p>`;
-            } finally {
-                loadingEl.classList.add('hidden');
-                btn.disabled = false;
-                btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-        }
-
-        // Helper to format Markdown-like syntax from AI
-        function formatAIResponse(text) {
-            // Escape HTML to prevent injection
-            let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-            // Bold: **text** -> <strong>text</strong>
-            safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong class="text-sql-blue font-bold">$1</strong>');
-            
-            // Inline Code: `text` -> <code>text</code>
-            safeText = safeText.replace(/`([^`]+)`/g, '<code class="bg-gray-100 text-red-600 px-1 py-0.5 rounded font-mono text-sm">$1</code>');
-
-            // Code Blocks: ```sql ... ``` -> <pre><code> ... </code></pre>
-            // We use a simple regex for blocks. 
-            safeText = safeText.replace(/```(\w+)?\n([\s\S]*?)```/g, function(match, lang, code) {
-                return `<div class="bg-gray-800 text-white p-4 rounded-lg my-3 overflow-x-auto font-mono text-sm leading-relaxed">${code.trim()}</div>`;
-            });
-
-            // Line breaks
-            safeText = safeText.replace(/\n/g, '<br>');
-
-            return safeText;
         }
 
         // --- NEW: Copy Functionality ---
